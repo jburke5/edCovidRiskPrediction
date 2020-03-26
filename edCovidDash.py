@@ -11,6 +11,7 @@ from uncertainties import ufloat
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+server = app.server
 
 mortalityDF = pd.read_csv('mortalityByAge.csv')
 mortalityDF.index=mortalityDF.ageCat
