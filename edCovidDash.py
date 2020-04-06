@@ -7,7 +7,6 @@ import pandas as pd
 import numpy as np
 from uncertainties import ufloat
 import copy
-import scipy.special as scipySpecial
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
