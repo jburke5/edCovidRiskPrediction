@@ -17,7 +17,8 @@ mortalityDF = pd.read_csv('mortalityByAge.csv')
 mortalityDF.index = mortalityDF.ageCat
 mortalityDF = mortalityDF.drop(labels=mortalityDF.columns[0], axis='columns')
 
-icuCoeffs = pd.read_csv('icuAdmitCoeffs-4-6-20.csv', index_col=0)
+icuCoeffs = pd.read_stata('icuAdmitCoeffs-4-6-20.dta')
+icuCoeffs.index = icuCoeffs['index']
 
 # currently unused...saving because we might bring it back...
 baselineChartData = [{'x': mortalityDF.ageMedian, 'y': mortalityDF.caseFatality, 'type': 'scatter',
