@@ -30,41 +30,43 @@ app.layout = html.Div(children=[
     html.H1(children='ED Covid Risk Predictor'),
 
     html.Div(children=[
-        html.Div(children=[
-            html.H4('Demographics'),
-            html.Div(children=[html.Label('Age'), dcc.Input(
-                type='number', value=65, id='ageInput')], id="agePanel"),
-            html.Div(children=[dcc.Checklist(options=[{'label': 'Female', 'value': 1}], value=[1], id="femaleInput")], id='femalePanel'),
-            html.Br(), html.H4('Lab Values'),
-            html.Div(children=[html.Label('D-Dimer'), dcc.Input(type='number', value=12.5, id='dDimerInput')], id="dDimerPanel"),
-            html.Div(children=[html.Label('Ferritin'), dcc.Input(type='number', value=250, id='ferritinInput')], id="ferritinPanel"),
-            html.Div(children=[html.Label('CRP'), dcc.Input(type='number', value=4, id='crpInput')], id="crpPanel"),
-            html.Div(children=[html.Label('High Sensitivity Troponin'), dcc.Input(type='number', value=13, id='hsTropInput')], id="hsTropPanel"),
-            html.Div(children=[html.Label('Lymphocyte Count'), dcc.Input(type='number', value=18, id='lymphInput')], id="lympthPanel"),
-            html.Br(), html.H4('SOFA Elements'),
-            html.Div(children=[html.Label('PA O2'), dcc.Input(type='number', value=100, id='paO2Input')], id="paO2Panel"),
-            html.Div(children=[html.Label('Fi O2'), dcc.Slider(id='fiO2Input', min=0.21, max=1.0, step=0.501, value=0.21, 
-                                                               tooltip={'always_visible': True, 'placement': 'right'})]),
-            html.Div(children=[html.Label('Platelets'), dcc.Input(type='number', value=225, id='plateletInput')], id="plateletPanel"),
-            html.Div(children=[html.Label('Glasgow Coma Scale'), dcc.Slider(id='gcsInput', min=0, max=15, step=1, value=15, 
-                                                               tooltip={'always_visible': True, 'placement': 'right'})], id="gcsPanel"),
-            html.Div(children=[html.Label('Bilirubin'), dcc.Input(type='number', value=0.9, id='biliInput')], id="biliPanel"),
-            html.Div(children=[html.Label('Creatinine'), dcc.Input(type='number', value=1.2, id='creatinineInput')], id="creatininePanel"),
-            html.Div(style={'font-size': '12px', }, children=[html.Label('Mean Arterial Pressure (MAP)'), 
-                dcc.Dropdown(id='mapInput',
-                    options=[
-                        {'label': 'No Hypotension', 'value': '0'},
-                        {'label': 'MAP < 70 mm Hg', 'value': '1'},
-                        {'label': 'Dopamine <= 5 or Dobutamine (any dose)', 'value': '2'},
-                        {'label': 'Dopamine > 5, Epinephrine <= 0.1 or Norepinephrine <= 0.1', 'value': '3'},
-                        {'label': 'Dopamine > 15 Epinephrine > 0.1 or Norepinephrine >  0.1', 'value': '4'}
-                    ],
-                value='0')], id="mapPanel"),
-        ], className='column', id="inputPanel", style={'width': '25%'}),
+        html.Div(style={'width': '22%'}, className='column', children=[dcc.Tabs(className='column', children=[dcc.Tab(label='Model Inputs', id='modelInputTab', children=[
+            html.Div(children=[
+                html.H4('Demographics'),
+                html.Div(children=[html.Label('Age'), dcc.Input(
+                    type='number', value=65, id='ageInput', min=0)], id="agePanel"),
+                html.Div(children=[dcc.Checklist(options=[{'label': 'Female', 'value': 1}], value=[1], id="femaleInput")], id='femalePanel'),
+                html.Br(), html.H4('Biomarkers'),
+                html.Div(children=[html.Label('D-Dimer (mcg/mL)'), dcc.Input(type='number', value=12.5, id='dDimerInput', min=0)], id="dDimerPanel"),
+                html.Div(children=[html.Label('Ferritin (ng/mL)'), dcc.Input(type='number', value=250, id='ferritinInput', min=0)], id="ferritinPanel"),
+                html.Div(children=[html.Label('CRP (mcg/mL)'), dcc.Input(type='number', value=4, id='crpInput', min=0)], id="crpPanel"),
+                html.Div(children=[html.Label('Lymphocyte Count (x 10^9 per L)' ), dcc.Input(type='number', value=18, id='lymphInput', min=0)], id="lympthPanel"),
+                html.Br(), html.H4('SOFA Elements'),
+                html.Div(children=[html.Label('PA O2'), dcc.Input(type='number', value=100, id='paO2Input', min=0)], id="paO2Panel"),
+                html.Div(children=[html.Label('Fi O2'), dcc.Slider(id='fiO2Input', min=0.21, max=1.0, step=0.501, value=0.21, 
+                                                                tooltip={'always_visible': True, 'placement': 'right'})]),
+                html.Div(children=[html.Label('Platelets (x10^9 per L)'), dcc.Input(type='number', value=225, id='plateletInput', min=0)], id="plateletPanel"),
+                html.Div(children=[html.Label('Glasgow Coma Scale'), dcc.Slider(id='gcsInput', min=0, max=15, step=1, value=15, 
+                                                                tooltip={'always_visible': True, 'placement': 'right'})], id="gcsPanel"),
+                html.Div(children=[html.Label('Bilirubin (mg/dL)'), dcc.Input(type='number', value=0.9, id='biliInput', min=0)], id="biliPanel"),
+                html.Div(children=[html.Label('Creatinine (mg/dL)'), dcc.Input(type='number', value=1.2, id='creatinineInput', min=0)], id="creatininePanel"),
+                html.Div(style={'font-size': '12px', }, children=[html.Label('Mean Arterial Pressure (MAP)'), 
+                    dcc.Dropdown(id='mapInput',
+                        options=[
+                            {'label': 'No Hypotension', 'value': '0'},
+                            {'label': 'MAP < 70 mm Hg', 'value': '1'},
+                            {'label': 'Dopamine <= 5 or Dobutamine (any dose)', 'value': '2'},
+                            {'label': 'Dopamine > 5, Epinephrine <= 0.1 or Norepinephrine <= 0.1', 'value': '3'},
+                            {'label': 'Dopamine > 15 Epinephrine > 0.1 or Norepinephrine >  0.1', 'value': '4'}
+                        ],
+                    value='0')], id="mapPanel"),
+            ], className='column', id="inputPanel", style={'width': '100%'})
+        ]), dcc.Tab(label="About", id='about-tab', children=[html.Label(
+            'This calculator is based on a model fit to Emergency Department data at the University of Michigan and, thus calibrated to this setting. It uses Bayesian logistic regression, incorporating prior informaiton from the published literature. The model estimates the probability that a pateint will be admitted to the ICU, based on their initial ED/triage demographics, biomarkers and SOFA score.')])]) ]),
         html.Div(children=[html.H4('ICU Probability'), html.H3(id='icuProb'), html.H3(
             id='icuCI')], className='column', id="outcomeRisk", style={'width': '25%'}),
-    ], className='row', id='inputOutputContainer'),
-], id="outermost")
+    ], className='row', id='incomeOutcomePanel'),
+])
 
 
 @app.callback(
@@ -74,7 +76,6 @@ app.layout = html.Div(children=[
      Input(component_id='dDimerInput', component_property='value'),
      Input(component_id='ferritinInput', component_property='value'),
      Input(component_id='crpInput', component_property='value'),
-     Input(component_id='hsTropInput', component_property='value'),
      Input(component_id='lymphInput', component_property='value'),
      Input(component_id='paO2Input', component_property='value'),
      Input(component_id='fiO2Input', component_property='value'),
@@ -85,7 +86,7 @@ app.layout = html.Div(children=[
      Input(component_id='mapInput', component_property='value'),
      Input(component_id='femaleInput', component_property='value')]
 )
-def update_risks(age, dDimer, ferritin, crp, hsTrop, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female):
+def update_risks(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female):
     xb = getCoeff('alpha')
     xb += getCoeff('betaAge') * age
     xb += getCoeff('betaDDimer') * dDimer
