@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 from uncertainties import ufloat
 import copy
+import json
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
@@ -25,8 +26,10 @@ coeffsForDisplay = icuCoeffs.copy(deep=True)
 coeffsForDisplay['priority'] = coeffsForDisplay['priority'].map('{:.2f}'.format)
 coeffsForDisplay['beta'] = coeffsForDisplay['beta'].map('{:.2f}'.format)
 coeffsForDisplay['sdBeta'] = coeffsForDisplay['sdBeta'].map('{:.2f}'.format)
-print(coeffsForDisplay)
 
+with open('icuModelPerformance-2020-04-08.json', 'r') as file:
+    modelPerformanceDict = json.load(file)
+roc = modelPerformanceDict['roc']
 # currently unused...saving because we might bring it back...
 baselineChartData = [{'x': mortalityDF.ageMedian, 'y': mortalityDF.caseFatality, 'type': 'scatter',
                       'name': 'Median Mortality for Age', 'mode': 'markers', 'marker': {'size': '10'}}]
@@ -94,7 +97,13 @@ app.layout = html.Div(children=[
                     html.Br(),
                     html.H4("Regression Coefficients for Model"),
                     dash_table.DataTable(id='regressionCoefficients', columns=[{'name':'name', 'id':'name'}, {'name':'beta', 'id':'beta'}, {'name':'sdBeta', 'id':'sdBeta'}, {'name':'priority', 'id':'priority'}],
-                                        data=coeffsForDisplay.to_dict('records'))
+                                        data=coeffsForDisplay.to_dict('records')),
+                    html.Br(),
+                    html.H4('Model Performance'),
+                    html.Label(f"c-statistic: {roc:0.2f}"),
+                    html.Br(),
+                    html.Label("Model Calibration plot"),
+                    html.Img(src='/static/calibration2020-04-08.jpg')
                 ])
             ])
         ]),
