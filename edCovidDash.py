@@ -46,6 +46,8 @@ def getInputsForLabs():
     labInputs = []
     for i, labRow in labs.iterrows():
         labName = labRow['name']
+        if (labName in ['hr', 'rr', 'temp']):
+            continue
         label = html.Label(labelsForLabs[labName])
         input = dcc.Input(type='number', value=labRow.p50, id=labName + "Input", min=0)
         labInputs.append(html.Div(children=[label, input], id=labName + "Panel"))
@@ -57,6 +59,11 @@ def getRiskPredictorChildren():
     children.append(html.Div(children=[html.Label('Age'), dcc.Input(
         type='number', value=65, id='ageInput', min=0)], id="agePanel"))
     children.append(html.Div(children=[dcc.Checklist(options=[{'label': 'Female', 'value': 1}], value=[1], id="femaleInput")], id='femalePanel'))
+    children.append(html.Br())
+    children.append(html.H4('Vital Signs'))
+    children.append(html.Div(children=[html.Label('Respiratory Rate'), dcc.Input(type='number', value=icuCoeffs.loc[icuCoeffs.name=='rr']['p50'].values[0], id='rrInput', min=0)], id="rrPanel"))
+    children.append(html.Div(children=[html.Label('Temperature'), dcc.Input(type='number', value=icuCoeffs.loc[icuCoeffs.name=='temp']['p50'].values[0], id='tempInput', min=0)], id="tempPanel"))
+    children.append(html.Div(children=[html.Label('Heart Rate'), dcc.Input(type='number', value=icuCoeffs.loc[icuCoeffs.name=='hr']['p50'].values[0], id='hrInput', min=0)], id="hrPanel"))
     children.append(html.Br())
     children.append(html.H4('SOFA Elements'))
     children.append(html.Div(children=[html.Label('PA O2'), dcc.Input(type='number', value=100, id='paO2Input', min=0)], id="paO2Panel"))
@@ -84,7 +91,7 @@ def getRiskPredictorChildren():
     return children
 
 app.layout = html.Div(children=[
-    html.H1(children='ED Covid Risk Predictor'),
+    html.H1(children='Covid ICU admission risk predictor'),
 
     html.Div(children=[
         html.Div(style={'width': '22%'}, className='column', children=[
@@ -133,16 +140,23 @@ app.layout = html.Div(children=[
      Input(component_id='ldhInput', component_property='value'),
      Input(component_id='lacInput', component_property='value'),
      Input(component_id='albuminInput', component_property='value'),
-     Input(component_id='hstropInput', component_property='value')]
+     Input(component_id='hstropInput', component_property='value'),
+     Input(component_id='hrInput', component_property='value'),
+     Input(component_id='rrInput', component_property='value'),
+     Input(component_id='tempInput', component_property='value')]
 )
 def update_risks(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
-                hgb, ldh, lac, albumin, hstrop):
+                hgb, ldh, lac, albumin, hstrop, hr, rr, temp):
     xb = getCoeff('alpha')
     xb += getCoeff('betaAge') * age
     xb += getCoeff('betaDdimer') * dDimer
     xb += getCoeff('betaFerritin') * ferritin
     xb+= getCoeff('betaCrp') * crp
     xb += getCoeff('betaLymph') * lymph
+    
+    xb += getCoeff('betaHr') * hr
+    xb += getCoeff('betaRr') * rr
+    xb += getCoeff('betaTemp') * temp
 
     xb += getCoeff('betaHgb') * hgb
     xb += getCoeff('betaLdh') * ldh
