@@ -15,33 +15,31 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server = app.server
 pd.options.display.float_format = '{:.2f}'.format
-mortalityDF = pd.read_csv('mortalityByAge.csv')
-mortalityDF.index = mortalityDF.ageCat
-mortalityDF = mortalityDF.drop(labels=mortalityDF.columns[0], axis='columns')
 
-icuCoeffs = pd.read_stata('icuAdmitCoeffs-2020-04-08.dta')
-icuCoeffs.index = icuCoeffs['index']
+def loadCoefficients(fileName):
+    coeffs = pd.read_stata(fileName)
+    coeffs.index = coeffs['index']
 
-coeffsForDisplay = icuCoeffs.copy(deep=True)
-coeffsForDisplay['priority'] = coeffsForDisplay['priority'].map('{:.2f}'.format)
-coeffsForDisplay['beta'] = coeffsForDisplay['beta'].map('{:.2f}'.format)
-coeffsForDisplay['sdBeta'] = coeffsForDisplay['sdBeta'].map('{:.2f}'.format)
+    coeffsForDisplay = coeffs.copy(deep=True)
+    coeffsForDisplay['priority'] = coeffsForDisplay['priority'].map('{:.2f}'.format)
+    coeffsForDisplay['beta'] = coeffsForDisplay['beta'].map('{:.2f}'.format)
+    coeffsForDisplay['sdBeta'] = coeffsForDisplay['sdBeta'].map('{:.2f}'.format)
+    return coeffs, coeffsForDisplay
 
-with open('icuModelPerformance-2020-04-08.json', 'r') as file:
-    modelPerformanceDict = json.load(file)
-roc = modelPerformanceDict['roc']
-# currently unused...saving because we might bring it back...
-baselineChartData = [{'x': mortalityDF.ageMedian, 'y': mortalityDF.caseFatality, 'type': 'scatter',
-                      'name': 'Median Mortality for Age', 'mode': 'markers', 'marker': {'size': '10'}}]
-baselineChartLayout = {'title': 'Age-Mortality Relationship', 'xaxis': {'title': 'Age',
-                                                                        'range': [30, 90]}, 'yaxis': {'title': 'Mortality', 'range': [-0.10, 1.0]}}
+icuCoeffs, icuCoeffsForDisplay = loadCoefficients('ICUCoeffs-2020-04-17.dta')
+
+primaryCoeffs, primaryCoeffsForDisplay = loadCoefficients('PrimaryOutcomeCoeffs-2020-04-17.dta')
 
 labelsForLabs = {'crp': 'CRP (mcg/mL)', 'ferritin':'Ferritin (ng/mL)', 'ddimer':'D-Dimer (mcg/mL)', 'hstrop':'High Sensitivity Troponin (ng/ml',
                  'hgb': 'Hemoglobin (g/dl)', 'lac':'Lactate (mmol/L)', 'ldh':'LDH (U/L)', 'albumin':'Albumin (g/dl)'}
 
+with open('modelPerformance-2020-04-17.json', 'r') as file:
+    modelPerformanceDict = json.load(file)
+icuROC = modelPerformanceDict['icuROC']
+primaryROC = modelPerformanceDict['primaryROC']
 
 def getInputsForLabs():
-    labs = icuCoeffs.loc[icuCoeffs.priority.notnull()]
+    labs = icuCoeffs.loc[icuCoeffs.p50.notnull()]
     labs.sort_values(by='priority', axis='index',ascending=False, inplace=True)
     labInputs = []
     for i, labRow in labs.iterrows():
@@ -91,7 +89,7 @@ def getRiskPredictorChildren():
     return children
 
 app.layout = html.Div(children=[
-    html.H1(children='Covid ICU admission risk predictor'),
+    html.H1(children='ED Covid risk predictor'),
 
     html.Div(children=[
         html.Div(style={'width': '22%'}, className='column', children=[
@@ -100,21 +98,28 @@ app.layout = html.Div(children=[
                     html.Div(children=getRiskPredictorChildren(), className='column', id="inputPanel", style={'width': '100%'})
                 ]),
                 dcc.Tab(label="About", id='about-tab', children=[
-                    html.Label('This calculator is based on a model fit to Emergency Department data at the University of Michigan and, thus calibrated to this setting. It uses Bayesian logistic regression, incorporating prior informaiton from the published literature. The model estimates the probability that a pateint will be admitted to the ICU, based on their initial ED/triage demographics, biomarkers and SOFA score.'),
+                    html.Label('This calculator is based on a model fit to Emergency Department data at the University of Michigan and, thus calibrated to this setting. It uses Bayesian logistic regression, incorporating prior informaiton from the published literature. There are two separate models. The first model estimates the probability that a patient will meet our primary outcome (death, intubation or shock). The second model estimate the probability that a pateint will be admitted to the ICU. Both models use initial ED/triage demographics, biomarkers and SOFA score as covariates. Comorbidities are not currently included in the model as they are not predictive of either outcome.'),
                     html.Br(),
-                    html.H4("Regression Coefficients for Model"),
-                    dash_table.DataTable(id='regressionCoefficients', columns=[{'name':'name', 'id':'name'}, {'name':'beta', 'id':'beta'}, {'name':'sdBeta', 'id':'sdBeta'}, {'name':'priority', 'id':'priority'}],
-                                        data=coeffsForDisplay.to_dict('records')),
+                    html.H4("Regression Coefficients for Primary Outcome Model"),
+                    dash_table.DataTable(id='primaryRegressionCoefficients', columns=[{'name':'name', 'id':'name'}, {'name':'beta', 'id':'beta'}, {'name':'sdBeta', 'id':'sdBeta'}, {'name':'priority', 'id':'priority'}],
+                                        data=primaryCoeffsForDisplay.to_dict('records')),
+                    html.H4("Regression Coefficients for ICU Model"),
+                    dash_table.DataTable(id='icuRegressionCoefficients', columns=[{'name':'name', 'id':'name'}, {'name':'beta', 'id':'beta'}, {'name':'sdBeta', 'id':'sdBeta'}, {'name':'priority', 'id':'priority'}],
+                                        data=icuCoeffsForDisplay.to_dict('records')),
                     html.Br(),
                     html.H4('Model Performance'),
-                    html.Label(f"c-statistic: {roc:0.2f}"),
+                    html.Label(f"Primary Outcome c-statistic: {icuROC:0.2f}"),
+                    html.Label(f"ICU c-statistic: {primaryROC:0.2f}"),
                     html.Br(),
-                    html.Label("Model Calibration plot"),
-                    html.Img(src='/static/calibration2020-04-08.jpg')
+                    html.Label("Primary Model Calibration plot"),
+                    html.Img(src='/static/primaryOutcomeCalibration2020-04-17.jpg'),
+                    html.Label("ICU Calibration plot"),
+                    html.Img(src='/static/icuCalibration2020-04-17.jpg')
                 ])
             ])
         ]),
-        html.Div(children=[html.H4('ICU Probability'), html.H3(id='icuProb'), html.H3(
+        html.Div(children=[html.H3('Death/Intubation/Shock Probability'), html.H5(id='primProb'), html.H5(
+            id='primCI'), html.Br(), html.H3('ICU Probability'), html.H5(id='icuProb'), html.H5(
             id='icuCI')], className='column', id="outcomeRisk", style={'width': '25%'}),
     ], className='row', id='incomeOutcomePanel'),
 ])
@@ -122,7 +127,9 @@ app.layout = html.Div(children=[
 
 @app.callback(
     [Output(component_id='icuProb', component_property='children'),
-     Output(component_id='icuCI', component_property='children')],
+     Output(component_id='icuCI', component_property='children'),
+     Output(component_id='primProb', component_property='children'),
+     Output(component_id='primCI', component_property='children')],
     [Input(component_id='ageInput', component_property='value'),
      Input(component_id='ddimerInput', component_property='value'),
      Input(component_id='ferritinInput', component_property='value'),
@@ -147,35 +154,49 @@ app.layout = html.Div(children=[
 )
 def update_risks(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
                 hgb, ldh, lac, albumin, hstrop, hr, rr, temp):
-    xb = getCoeff('alpha')
-    xb += getCoeff('betaAge') * age
-    xb += getCoeff('betaDdimer') * dDimer
-    xb += getCoeff('betaFerritin') * ferritin
-    xb+= getCoeff('betaCrp') * crp
-    xb += getCoeff('betaLymph') * lymph
-    
-    xb += getCoeff('betaHr') * hr
-    xb += getCoeff('betaRr') * rr
-    xb += getCoeff('betaTemp') * temp
 
-    xb += getCoeff('betaHgb') * hgb
-    xb += getCoeff('betaLdh') * ldh
-    xb += getCoeff('betaLac') * lac
-    xb += getCoeff('betaAlbumin') * albumin
-    xb += getCoeff('betaHstrop') * hstrop
-
-    xb += getCoeff('betaFemale') * len(female)
-    xb += getCoeff('betaSofa') * calcSofa(paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure)
-
-    icuProb = np.e**xb/(1+np.e**xb)
+    icuXB = getXB(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
+                hgb, ldh, lac, albumin, hstrop, hr, rr, temp, icuCoeffs)
+    icuProb = np.e**icuXB/(1+np.e**icuXB)
 
     icuString = f"{icuProb.nominal_value*100:.0f}%"
     ciString = f"95% CI [{(icuProb.nominal_value-icuProb.std_dev*1.96)*100:.0f}% - {(icuProb.nominal_value+icuProb.std_dev*1.96)*100:.0f}%]"
 
-    return icuString, ciString
+    primXB = getXB(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
+                hgb, ldh, lac, albumin, hstrop, hr, rr, temp, primaryCoeffs)
+    primProb = np.e**primXB/(1+np.e**primXB)
 
-def getCoeff(coeffName):
-    return ufloat(icuCoeffs.loc[coeffName]['beta'], icuCoeffs.loc[coeffName]['sdBeta'])
+    primString = f"{primProb.nominal_value*100:.0f}%"
+    primCIString = f"95% CI [{(primProb.nominal_value-primProb.std_dev*1.96)*100:.0f}% - {(primProb.nominal_value+primProb.std_dev*1.96)*100:.0f}%]"
+
+    return icuString, ciString, primString, primCIString
+
+def getXB(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
+                hgb, ldh, lac, albumin, hstrop, hr, rr, temp, coeffs):
+    xb = getCoeff('alpha', coeffs)
+    xb += getCoeff('betaAge', coeffs) * age
+    xb += getCoeff('betaDdimer', coeffs) * dDimer
+    xb += getCoeff('betaFerritin', coeffs) * ferritin
+    xb += getCoeff('betaCrp', coeffs) * crp
+    xb += getCoeff('betaLymph', coeffs) * lymph
+    xb += getCoeff('betaHr', coeffs) * hr
+    xb += getCoeff('betaRr', coeffs) * rr
+    xb += getCoeff('betaTemp', coeffs) * temp
+
+    xb += getCoeff('betaHgb', coeffs) * hgb
+    xb += getCoeff('betaLdh', coeffs) * ldh
+    xb += getCoeff('betaLac', coeffs) * lac
+    xb += getCoeff('betaAlbumin', coeffs) * albumin
+    xb += getCoeff('betaHstrop', coeffs) * hstrop
+
+    xb += getCoeff('betaFemale', coeffs) * len(female)
+    xb += getCoeff('betaSofa', coeffs) * calcSofa(paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure) 
+    return xb
+
+
+def getCoeff(coeffName, coeffFile):
+    return ufloat(coeffFile.loc[coeffName]['beta'], coeffFile.loc[coeffName]['sdBeta'])
+
 
 def calcSofa(paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure):
     o2Product = paO2 / fiO2
@@ -186,36 +207,6 @@ def calcSofa(paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure):
     sofa +=  pd.cut([creatinine], bins=[0, 1.2, 1.9, 3.4, 4.9, 1000]).codes[0]
     sofa +=  int(meanArtPressure)
     return sofa
-
-# currently unused...
-def getCrudeMortalityEstimate(age, dDimer, ferritin):
-    cat = pd.cut(x=[age], bins=[0, 9, 19, 29, 39, 49, 59, 69, 79, 120])
-    ageMean = mortalityDF.iloc[cat.codes[0], 0]
-    ageSE = mortalityDF.iloc[cat.codes[0], 1]
-    ageMortality = ufloat(ageMean, ageSE)
-
-    ddimerCat = pd.cut(x=[dDimer], bins=[0, 0.5, 1, 1000])
-    ddimerCoeffs = [ufloat(1, 0), ufloat(1.96, 0.73), ufloat(20.04, 6.89)]
-    ddimerOR = ddimerCoeffs[ddimerCat.codes[0]]
-
-    ferritinCat = pd.cut(x=[ferritin], bins=[0, 300, 10000])
-    ferritinCoeffs = [ufloat(1, 1), ufloat(9.1, 3.6)]
-    ferritinOR = ferritinCoeffs[ferritinCat.codes[0]]
-
-    #il6OR = il6 * ufloat(1.12, 0.046)
-    totalBiomarkerOR = ddimerOR * ferritinOR  # * il6OR
-    combinedOdds = ageMortality/(1-ageMortality)*totalBiomarkerOR
-    combinedProb = combinedOdds/(combinedOdds+1)
-    return combinedProb
-
-
-def getChartData(combinedProb):
-    newChartData = {'x': [age], 'y': [combinedProb.nominal_value], 'type': 'scatter',
-                    'mode': 'marker', 'name': 'Predicted Mortality for Characteristics', 'marker': {'size': 20}}
-    updatedData = copy.deepcopy(baselineChartData)
-    updatedData.append(newChartData)
-    figure = {'data': updatedData, 'layout': baselineChartLayout}
-    return figure
 
 if __name__ == '__main__':
     app.run_server(debug=True)
