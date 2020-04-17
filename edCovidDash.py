@@ -51,6 +51,9 @@ def getDistributionFig(prob):
     kde = scipy.stats.gaussian_kde(modelData["posteriorPrimaryOutcome"]).pdf(prob)
     distributionFig = ff.create_distplot([modelData["posteriorPrimaryOutcome"]], ['Primary Outcome'], bin_size=.05, show_rug=False)
     distributionFig.add_trace(go.Scatter(y=kde, x=[prob], marker={'size':40, 'color':'red'}, name="Entered Risk Parameters"))
+    distributionFig.update_layout(width=700,     margin=dict(
+        l=00,r=50,b=100,t=10,pad=4
+    ),)
     return distributionFig
 
 
@@ -137,7 +140,7 @@ app.layout = html.Div(children=[
         html.Div(children=[html.H3('Death, Intubation, Shock Probability'), html.H5(id='primProb'), html.H5(
             id='primCI'), html.Br(), html.H3('ICU Probability'), html.H5(id='icuProb'), html.H5(
             id='icuCI')], className='column', id="outcomeRisk", style={'width': '15%'}),
-        html.Div(children=[html.H4("Distribution of Primary Outcome Risk"), dcc.Graph(figure=getDistributionFig(0.2), id='distributionGraph')], className='column', id='figurePanel', style={'width': '45%'}),
+        html.Div(children=[html.H4("Distribution of Primary Outcome Risk"), dcc.Graph(figure=getDistributionFig(0.2), id='distributionGraph')], className='column', id='figurePanel', style={'width': '55%'}),
     ], className='row', id='inputOutcomePanel'),
 ])
 
