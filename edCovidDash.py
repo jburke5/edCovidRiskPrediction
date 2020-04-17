@@ -7,7 +7,12 @@ from dash.dependencies import Input, Output
 import pandas as pd
 import numpy as np
 from uncertainties import ufloat
-import copy
+import plotly.figure_factory as ff
+import plotly.graph_objects as go
+
+
+import scipy.stats
+
 import json
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -37,6 +42,17 @@ with open('modelPerformance-2020-04-17.json', 'r') as file:
     modelPerformanceDict = json.load(file)
 icuROC = modelPerformanceDict['icuROC']
 primaryROC = modelPerformanceDict['primaryROC']
+
+
+# Create distplot with custom bin_size
+modelData = pd.read_stata('modelData-2020-04-17.dta')
+
+def getDistributionFig(prob):
+    kde = scipy.stats.gaussian_kde(modelData["posteriorPrimaryOutcome"]).pdf(prob)
+    distributionFig = ff.create_distplot([modelData["posteriorPrimaryOutcome"]], ['Primary Outcome'], bin_size=.05, show_rug=False)
+    distributionFig.add_trace(go.Scatter(y=kde, x=[prob], marker={'size':40, 'color':'red'}, name="Entered Risk Parameters"))
+    return distributionFig
+
 
 def getInputsForLabs():
     labs = icuCoeffs.loc[icuCoeffs.p50.notnull()]
@@ -118,10 +134,11 @@ app.layout = html.Div(children=[
                 ])
             ])
         ]),
-        html.Div(children=[html.H3('Death/Intubation/Shock Probability'), html.H5(id='primProb'), html.H5(
+        html.Div(children=[html.H3('Death, Intubation, Shock Probability'), html.H5(id='primProb'), html.H5(
             id='primCI'), html.Br(), html.H3('ICU Probability'), html.H5(id='icuProb'), html.H5(
-            id='icuCI')], className='column', id="outcomeRisk", style={'width': '25%'}),
-    ], className='row', id='incomeOutcomePanel'),
+            id='icuCI')], className='column', id="outcomeRisk", style={'width': '15%'}),
+        html.Div(children=[html.H4("Distribution of Primary Outcome Risk"), dcc.Graph(figure=getDistributionFig(0.2), id='distributionGraph')], className='column', id='figurePanel', style={'width': '45%'}),
+    ], className='row', id='inputOutcomePanel'),
 ])
 
 
@@ -129,7 +146,8 @@ app.layout = html.Div(children=[
     [Output(component_id='icuProb', component_property='children'),
      Output(component_id='icuCI', component_property='children'),
      Output(component_id='primProb', component_property='children'),
-     Output(component_id='primCI', component_property='children')],
+     Output(component_id='primCI', component_property='children'),
+     Output(component_id='distributionGraph', component_property='figure')],
     [Input(component_id='ageInput', component_property='value'),
      Input(component_id='ddimerInput', component_property='value'),
      Input(component_id='ferritinInput', component_property='value'),
@@ -169,7 +187,7 @@ def update_risks(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, 
     primString = f"{primProb.nominal_value*100:.0f}%"
     primCIString = f"95% CI [{(primProb.nominal_value-primProb.std_dev*1.96)*100:.0f}% - {(primProb.nominal_value+primProb.std_dev*1.96)*100:.0f}%]"
 
-    return icuString, ciString, primString, primCIString
+    return icuString, ciString, primString, primCIString, getDistributionFig(primProb.nominal_value)
 
 def getXB(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
                 hgb, ldh, lac, albumin, hstrop, hr, rr, temp, coeffs):
