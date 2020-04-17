@@ -178,19 +178,28 @@ def update_risks(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, 
 
     icuXB = getXB(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
                 hgb, ldh, lac, albumin, hstrop, hr, rr, temp, icuCoeffs)
-    icuProb = np.e**icuXB/(1+np.e**icuXB)
+    icuProb = invlogit(icuXB.nominal_value)
+    icuUci = invlogit(icuXB.nominal_value + 1.96*icuXB.std_dev)
+    icuLci = invlogit(icuXB.nominal_value - 1.96*icuXB.std_dev)
 
-    icuString = f"{icuProb.nominal_value*100:.0f}%"
-    ciString = f"95% CI [{(icuProb.nominal_value-icuProb.std_dev*1.96)*100:.0f}% - {(icuProb.nominal_value+icuProb.std_dev*1.96)*100:.0f}%]"
+    icuString = f"{icuProb*100:.0f}%"
+    ciString = f"95% CI [{icuLci*100:.0f}% - {icuUci*100:.0f}%]"
 
     primXB = getXB(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
                 hgb, ldh, lac, albumin, hstrop, hr, rr, temp, primaryCoeffs)
-    primProb = np.e**primXB/(1+np.e**primXB)
+    primProb = invlogit(primXB.nominal_value)
+    primUCI = invlogit(primXB.nominal_value + 1.96*primXB.std_dev)
+    primLCI = invlogit(primXB.nominal_value - 1.96*primXB.std_dev)
 
-    primString = f"{primProb.nominal_value*100:.0f}%"
-    primCIString = f"95% CI [{(primProb.nominal_value-primProb.std_dev*1.96)*100:.0f}% - {(primProb.nominal_value+primProb.std_dev*1.96)*100:.0f}%]"
+    primString = f"{primProb*100:.0f}%"
+    primCIString = f"95% CI [{primLCI*100:.0f}% - {primUCI*100:.0f}%]"
 
-    return icuString, ciString, primString, primCIString, getDistributionFig(primProb.nominal_value)
+    return icuString, ciString, primString, primCIString, getDistributionFig(primProb)
+
+def invlogit(x):
+    return np.e**x/(1+np.e**x)
+
+
 
 def getXB(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
                 hgb, ldh, lac, albumin, hstrop, hr, rr, temp, coeffs):
