@@ -21,6 +21,8 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server = app.server
 pd.options.display.float_format = '{:.2f}'.format
 
+date = '2020-04-18'
+
 def loadCoefficients(fileName):
     coeffs = pd.read_stata(fileName)
     coeffs.index = coeffs['index']
@@ -31,21 +33,21 @@ def loadCoefficients(fileName):
     coeffsForDisplay['sdBeta'] = coeffsForDisplay['sdBeta'].map('{:.2f}'.format)
     return coeffs, coeffsForDisplay
 
-icuCoeffs, icuCoeffsForDisplay = loadCoefficients('ICUCoeffs-2020-04-17.dta')
+icuCoeffs, icuCoeffsForDisplay = loadCoefficients(f'ICUCoeffs-{date}.dta')
 
-primaryCoeffs, primaryCoeffsForDisplay = loadCoefficients('PrimaryOutcomeCoeffs-2020-04-17.dta')
+primaryCoeffs, primaryCoeffsForDisplay = loadCoefficients(f'PrimaryOutcomeCoeffs-{date}.dta')
 
 labelsForLabs = {'crp': 'CRP (mcg/mL)', 'ferritin':'Ferritin (ng/mL)', 'ddimer':'D-Dimer (mcg/mL)', 'hstrop':'High Sensitivity Troponin (ng/ml',
                  'hgb': 'Hemoglobin (g/dl)', 'lac':'Lactate (mmol/L)', 'ldh':'LDH (U/L)', 'albumin':'Albumin (g/dl)'}
 
-with open('modelPerformance-2020-04-17.json', 'r') as file:
+with open(f'modelPerformance-{date}.json', 'r') as file:
     modelPerformanceDict = json.load(file)
 icuROC = modelPerformanceDict['icuROC']
 primaryROC = modelPerformanceDict['primaryROC']
 
 
 # Create distplot with custom bin_size
-modelData = pd.read_stata('modelData-2020-04-17.dta')
+modelData = pd.read_stata(f'modelData-{date}.dta')
 
 def getDistributionFig(prob):
     kde = scipy.stats.gaussian_kde(modelData["posteriorPrimaryOutcome"]).pdf(prob)
