@@ -21,7 +21,7 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 server = app.server
 pd.options.display.float_format = '{:.2f}'.format
 
-date = '2020-04-18'
+date = '2020-05-05'
 
 def loadCoefficients(fileName):
     coeffs = pd.read_stata(fileName)
@@ -34,11 +34,13 @@ def loadCoefficients(fileName):
     return coeffs, coeffsForDisplay
 
 icuCoeffs, icuCoeffsForDisplay = loadCoefficients(f'ICUCoeffs-{date}.dta')
-
 primaryCoeffs, primaryCoeffsForDisplay = loadCoefficients(f'PrimaryOutcomeCoeffs-{date}.dta')
+survivalCoeffs, survival5CoeffsForDisplay = loadCoefficients(f'SurvivalCoeffs-{date}.dta')
 
-labelsForLabs = {'crp': 'CRP (mcg/mL)', 'ferritin':'Ferritin (ng/mL)', 'ddimer':'D-Dimer (mcg/mL)', 'hstrop':'High Sensitivity Troponin (ng/ml',
-                 'hgb': 'Hemoglobin (g/dl)', 'lac':'Lactate (mmol/L)', 'ldh':'LDH (U/L)', 'albumin':'Albumin (g/dl)'}
+labelsForLabs = {'crp': 'CRP (mcg/mL)', 'ferritin':'Ferritin (ng/mL)', 'ddimer':'D-Dimer (mcg/mL)', 'hstrop':'High Sensitivity Troponin (ng/ml)',
+                 'hgb': 'Hemoglobin (g/dl)', 'lac':'Lactate (mmol/L)', 'ldh':'LDH (U/L)', 'albumin':'Albumin (g/dl)', 
+                 'platelets' :'Platelets (x10^9 per L)', 'tbili' : 'Bilirubin (mg/dL)', 'creatinine':'Creatinine (mg/dL)',
+                 'lymph': 'Lymphocyte Count (x 10^9 per L)'}
 
 with open(f'modelPerformance-{date}.json', 'r') as file:
     modelPerformanceDict = json.load(file)
@@ -58,6 +60,21 @@ def getDistributionFig(prob):
     ),)
     return distributionFig
 
+def weibull_surv(l, p, t):
+    return np.exp(-1*(l*t)**p)
+
+def getSurvivalFig(xb):
+    alpha = 0.389
+    times=np.linspace(0, 30, 200)
+    outcomes = [weibull_surv(1/np.exp(xb/alpha), alpha, t) for t in times]
+
+    survivalFig = go.Figure()
+    survivalFig.add_trace(go.Scatter(mode='lines', y=outcomes, x=times, name='Entered Risk Parameters'))
+    survivalFig.update_layout(title='Average Survival Free of Primary Outcome for Entered Parameters',
+                    xaxis_title='Days from ED presentation', 
+                    yaxis_title='Probability of Survival Free of Primary Outcome')
+    return survivalFig
+
 
 def getInputsForLabs():
     labs = icuCoeffs.loc[icuCoeffs.p50.notnull()]
@@ -65,47 +82,28 @@ def getInputsForLabs():
     labInputs = []
     for i, labRow in labs.iterrows():
         labName = labRow['name']
-        if (labName in ['hr', 'rr', 'temp']):
+        if (labName in ['hr', 'rr', 'temp', 'map', 'sat', 'comorbiditycount']):
             continue
         label = html.Label(labelsForLabs[labName])
-        input = dcc.Input(type='number', value=labRow.p50, id=labName + "Input", min=0)
+        input = dcc.Input(type='number', value=f'{labRow.p50:.1f}', id=labName + "Input", min=0)
         labInputs.append(html.Div(children=[label, input], id=labName + "Panel"))
     return labInputs
 
 def getRiskPredictorChildren():
     children = []
     children.append(html.H4('Demographics'))
-    children.append(html.Div(children=[html.Label('Age'), dcc.Input(
-        type='number', value=65, id='ageInput', min=0)], id="agePanel"))
+    children.append(html.Div(children=[html.Label('Age'), dcc.Input(type='number', value=65, id='ageInput', min=0)], id="agePanel"))
+    children.append(html.Div(children=[html.Label('Comorbidity Count'), dcc.Input(type='number', value=icuCoeffs.loc[icuCoeffs.name=='comorbiditycount']['p50'].values[0], id='comorbidityInput', min=0)], id="comorbidityPanel"))
     children.append(html.Div(children=[dcc.Checklist(options=[{'label': 'Female', 'value': 1}], value=[1], id="femaleInput")], id='femalePanel'))
     children.append(html.Br())
     children.append(html.H4('Vital Signs'))
+    children.append(html.Div(children=[html.Label('Oxygen Saturation'), dcc.Input(type='number', value=100, id='o2SatInput', min=0)], id="o2satPanel"))
     children.append(html.Div(children=[html.Label('Respiratory Rate'), dcc.Input(type='number', value=icuCoeffs.loc[icuCoeffs.name=='rr']['p50'].values[0], id='rrInput', min=0)], id="rrPanel"))
-    children.append(html.Div(children=[html.Label('Temperature'), dcc.Input(type='number', value=icuCoeffs.loc[icuCoeffs.name=='temp']['p50'].values[0], id='tempInput', min=0)], id="tempPanel"))
     children.append(html.Div(children=[html.Label('Heart Rate'), dcc.Input(type='number', value=icuCoeffs.loc[icuCoeffs.name=='hr']['p50'].values[0], id='hrInput', min=0)], id="hrPanel"))
-    children.append(html.Br())
-    children.append(html.H4('SOFA Elements'))
-    children.append(html.Div(children=[html.Label('PA O2'), dcc.Input(type='number', value=100, id='paO2Input', min=0)], id="paO2Panel"))
-    children.append(html.Div(children=[html.Label('Fi O2'), dcc.Slider(id='fiO2Input', min=0.21, max=1.0, step=0.501, value=0.21, 
-                                                    tooltip={'always_visible': True, 'placement': 'right'})]))
-    children.append(html.Div(children=[html.Label('Platelets (x10^9 per L)'), dcc.Input(type='number', value=225, id='plateletInput', min=0)], id="plateletPanel"))
-    children.append(html.Div(children=[html.Label('Glasgow Coma Scale'), dcc.Slider(id='gcsInput', min=0, max=15, step=1, value=15, 
-                                                    tooltip={'always_visible': True, 'placement': 'right'})], id="gcsPanel"))
-    children.append(html.Div(children=[html.Label('Bilirubin (mg/dL)'), dcc.Input(type='number', value=0.9, id='biliInput', min=0)], id="biliPanel"))
-    children.append(html.Div(children=[html.Label('Creatinine (mg/dL)'), dcc.Input(type='number', value=1.2, id='creatinineInput', min=0)], id="creatininePanel"))
-    children.append(html.Div(style={'font-size': '12px', }, children=[html.Label('Mean Arterial Pressure (MAP)'), 
-        dcc.Dropdown(id='mapInput',
-            options=[
-                {'label': 'No Hypotension', 'value': '0'},
-                {'label': 'MAP < 70 mm Hg', 'value': '1'},
-                {'label': 'Dopamine <= 5 or Dobutamine (any dose)', 'value': '2'},
-                {'label': 'Dopamine > 5, Epinephrine <= 0.1 or Norepinephrine <= 0.1', 'value': '3'},
-                {'label': 'Dopamine > 15 Epinephrine > 0.1 or Norepinephrine >  0.1', 'value': '4'}
-            ],
-        value='0')], id="mapPanel"))
+    children.append(html.Div(children=[html.Label('Temperature'), dcc.Input(type='number', value=icuCoeffs.loc[icuCoeffs.name=='temp']['p50'].values[0], id='tempInput', min=0)], id="tempPanel"))
+    children.append(html.Div(children=[html.Label('Mean Arterial Pressure (mmHg)'), dcc.Input(type='number', value=f"{icuCoeffs.loc[icuCoeffs.name=='map']['p50'].values[0]:.1f}", id='mapInput', min=0)], id="mapPanel")), 
     children.append(html.Br())
     children.append(html.H4('Biomarkers'))
-    children.append(html.Div(children=[html.Label('Lymphocyte Count (x 10^9 per L)' ), dcc.Input(type='number', value=18, id='lymphInput', min=0)], id="lymphPanel"))
     children.extend(getInputsForLabs())
     return children
 
@@ -142,7 +140,8 @@ app.layout = html.Div(children=[
         html.Div(children=[html.H3('Death, Intubation, Shock Probability'), html.H5(id='primProb'), html.H5(
             id='primCI'), html.Br(), html.H3('ICU Probability'), html.H5(id='icuProb'), html.H5(
             id='icuCI')], className='column', id="outcomeRisk", style={'width': '15%'}),
-        html.Div(children=[html.H4("Distribution of Primary Outcome Risk"), dcc.Graph(figure=getDistributionFig(0.2), id='distributionGraph')], className='column', id='figurePanel', style={'width': '55%'}),
+        html.Div(children=[html.H4("Distribution of Primary Outcome Risk"), dcc.Graph(figure=getDistributionFig(0.2), id='distributionGraph')], className='column', id='distributionPanel', style={'width': '55%'}),
+        html.Div(children=[dcc.Graph(figure=getSurvivalFig(2), id='survivalGraph')], className='column', id='survivalPanel', style={'width': '55%'}),
     ], className='row', id='inputOutcomePanel'),
 ])
 
@@ -152,17 +151,18 @@ app.layout = html.Div(children=[
      Output(component_id='icuCI', component_property='children'),
      Output(component_id='primProb', component_property='children'),
      Output(component_id='primCI', component_property='children'),
-     Output(component_id='distributionGraph', component_property='figure')],
+     Output(component_id='distributionGraph', component_property='figure'),
+     Output(component_id='survivalGraph', component_property='figure')],
     [Input(component_id='ageInput', component_property='value'),
+     Input(component_id='comorbidityInput', component_property='value'),
      Input(component_id='ddimerInput', component_property='value'),
      Input(component_id='ferritinInput', component_property='value'),
      Input(component_id='crpInput', component_property='value'),
      Input(component_id='lymphInput', component_property='value'),
-     Input(component_id='paO2Input', component_property='value'),
-     Input(component_id='fiO2Input', component_property='value'),
-     Input(component_id='plateletInput', component_property='value'),
-     Input(component_id='gcsInput', component_property='value'),
-     Input(component_id='biliInput', component_property='value'),
+     Input(component_id='o2SatInput', component_property='value'),
+     Input(component_id='mapInput', component_property='value'),
+     Input(component_id='plateletsInput', component_property='value'),
+     Input(component_id='tbiliInput', component_property='value'),
      Input(component_id='creatinineInput', component_property='value'),
      Input(component_id='mapInput', component_property='value'),
      Input(component_id='femaleInput', component_property='value'),
@@ -175,10 +175,10 @@ app.layout = html.Div(children=[
      Input(component_id='rrInput', component_property='value'),
      Input(component_id='tempInput', component_property='value')]
 )
-def update_risks(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
+def update_risks(age, comorbidityCount, dDimer, ferritin, crp, lymph, o2Sat, map, platelets,  bili, creatinine, meanArtPressure, female,
                 hgb, ldh, lac, albumin, hstrop, hr, rr, temp):
 
-    icuXB = getXB(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
+    icuXB = getXB(age, comorbidityCount, dDimer, ferritin, crp, lymph, o2Sat, platelets,  bili, creatinine, meanArtPressure, female,
                 hgb, ldh, lac, albumin, hstrop, hr, rr, temp, icuCoeffs)
     icuProb = invlogit(icuXB.nominal_value)
     icuUci = invlogit(icuXB.nominal_value + 1.96*icuXB.std_dev)
@@ -187,7 +187,7 @@ def update_risks(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, 
     icuString = f"{icuProb*100:.0f}%"
     ciString = f"95% CI [{icuLci*100:.0f}% - {icuUci*100:.0f}%]"
 
-    primXB = getXB(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
+    primXB = getXB(age, comorbidityCount, dDimer, ferritin, crp, lymph, o2Sat, platelets,  bili, creatinine, meanArtPressure, female,
                 hgb, ldh, lac, albumin, hstrop, hr, rr, temp, primaryCoeffs)
     primProb = invlogit(primXB.nominal_value)
     primUCI = invlogit(primXB.nominal_value + 1.96*primXB.std_dev)
@@ -196,33 +196,41 @@ def update_risks(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, 
     primString = f"{primProb*100:.0f}%"
     primCIString = f"95% CI [{primLCI*100:.0f}% - {primUCI*100:.0f}%]"
 
-    return icuString, ciString, primString, primCIString, getDistributionFig(primProb)
+    survXB = getXB(age, comorbidityCount, dDimer, ferritin, crp, lymph, o2Sat, platelets,  bili, creatinine, meanArtPressure, female,
+                hgb, ldh, lac, albumin, hstrop, hr, rr, temp, survivalCoeffs, interceptName='intercept')
+
+    return icuString, ciString, primString, primCIString, getDistributionFig(primProb), getSurvivalFig(survXB.nominal_value)
 
 def invlogit(x):
     return np.e**x/(1+np.e**x)
 
 
 
-def getXB(age, dDimer, ferritin, crp, lymph, paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure, female,
-                hgb, ldh, lac, albumin, hstrop, hr, rr, temp, coeffs):
+def getXB(age, comorbidityCount, dDimer, ferritin, crp, lymph, o2Sat, platelets,  bili, creatinine, meanArtPressure, female,
+                hgb, ldh, lac, albumin, hstrop, hr, rr, temp, coeffs, interceptName='alpha'):
     xb = getCoeff('alpha', coeffs)
     xb += getCoeff('betaAge', coeffs) * age
-    xb += getCoeff('betaDdimer', coeffs) * dDimer
-    xb += getCoeff('betaFerritin', coeffs) * ferritin
-    xb += getCoeff('betaCrp', coeffs) * crp
-    xb += getCoeff('betaLymph', coeffs) * lymph
-    xb += getCoeff('betaHr', coeffs) * hr
-    xb += getCoeff('betaRr', coeffs) * rr
-    xb += getCoeff('betaTemp', coeffs) * temp
+    xb += getCoeff('betaComorbiditycount', coeffs) * comorbidityCount
+    xb += getCoeff('betaDdimer', coeffs) * float(dDimer)
+    xb += getCoeff('betaFerritin', coeffs) * float(ferritin)
+    xb += getCoeff('betaCrp', coeffs) * float(crp)
+    xb += getCoeff('betaLymph', coeffs) * float(lymph)
+    xb += getCoeff('betaSat', coeffs) * float(o2Sat)
+    xb += getCoeff('betaHr', coeffs) * float(hr)
+    xb += getCoeff('betaRr', coeffs) * float(rr)
+    xb += getCoeff('betaTemp', coeffs) * float(temp)
+    xb += getCoeff('betaMap', coeffs) * float(meanArtPressure)
 
-    xb += getCoeff('betaHgb', coeffs) * hgb
-    xb += getCoeff('betaLdh', coeffs) * ldh
-    xb += getCoeff('betaLac', coeffs) * lac
-    xb += getCoeff('betaAlbumin', coeffs) * albumin
-    xb += getCoeff('betaHstrop', coeffs) * hstrop
+    xb += getCoeff('betaHgb', coeffs) * float(hgb)
+    xb += getCoeff('betaLdh', coeffs) * float(ldh)
+    xb += getCoeff('betaLac', coeffs) * float(lac)
+    xb += getCoeff('betaAlbumin', coeffs) * float(albumin)
+    xb += getCoeff('betaHstrop', coeffs) * float(hstrop)
+    xb += getCoeff('betaPlatelets', coeffs) * float(platelets)
+    xb += getCoeff('betaTbili', coeffs) * float(bili)
+    xb += getCoeff('betaCreatinine', coeffs) * float(creatinine)
 
     xb += getCoeff('betaFemale', coeffs) * len(female)
-    xb += getCoeff('betaSofa', coeffs) * calcSofa(paO2, fiO2, platelets, gcs, bili, creatinine, meanArtPressure) 
     return xb
 
 
