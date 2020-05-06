@@ -64,7 +64,7 @@ def weibull_surv(l, p, t):
     return np.exp(-1*(l*t)**p)
 
 def getSurvivalFig(xb):
-    alpha = 0.389
+    alpha = survivalCoeffs.loc['alpha']['beta']
     times=np.linspace(0, 30, 200)
     outcomes = [weibull_surv(1/np.exp(xb/alpha), alpha, t) for t in times]
 
